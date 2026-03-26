@@ -17,14 +17,21 @@ interface AggregatedContributor {
 interface ContributorSummaryProps {
   pledges?: Pledge[];
   assetCode: string;
+  isLoading?: boolean;
 }
-
-export function ContributorSummary({ pledges, assetCode }: ContributorSummaryProps) {
-  if (pledges === undefined) {
+export function ContributorSummary({ pledges, assetCode, isLoading }: ContributorSummaryProps) {
+  if (isLoading || pledges === undefined) {
     return (
       <section className="contributor-summary contributor-summary-loading" aria-label="Contributor summary">
         <h3 className="contributor-summary-title">Contributors</h3>
-        <p className="muted">Loading contributor breakdown…</p>
+        <div className="contributor-summary-stats" style={{ marginTop: 12 }}>
+          {Array.from({ length: 3 }).map((_, i) => (
+            <article key={i} className="contributor-stat">
+              <div className="skeleton skeleton-line" style={{ width: 100 }} />
+              <div className="skeleton skeleton-line" style={{ width: 60, height: 20, marginTop: 8 }} />
+            </article>
+          ))}
+        </div>
       </section>
     );
   }

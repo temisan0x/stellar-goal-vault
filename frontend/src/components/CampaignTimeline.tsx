@@ -2,6 +2,7 @@ import { CampaignEvent } from "../types/campaign";
 
 interface CampaignTimelineProps {
   history: CampaignEvent[];
+  isLoading?: boolean;
 }
 
 function formatTimestamp(unixSeconds: number): string {
@@ -23,7 +24,7 @@ function describeEvent(event: CampaignEvent): string {
   }
 }
 
-export function CampaignTimeline({ history }: CampaignTimelineProps) {
+export function CampaignTimeline({ history, isLoading }: CampaignTimelineProps) {
   return (
     <section className="card">
       <div className="section-heading">
@@ -31,7 +32,19 @@ export function CampaignTimeline({ history }: CampaignTimelineProps) {
         <p className="muted">Each action is stored locally so contributors can follow campaign activity.</p>
       </div>
 
-      {history.length === 0 ? (
+      {isLoading ? (
+        <div className="timeline">
+          {Array.from({ length: 4 }).map((_, idx) => (
+            <article key={idx} className="timeline-item">
+              <div className="timeline-dot" aria-hidden />
+              <div className="timeline-copy">
+                <div className="skeleton skeleton-line" style={{ width: 160 }} />
+                <div className="skeleton skeleton-line" style={{ width: 100, height: 12 }} />
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : history.length === 0 ? (
         <div className="empty-state">Select a campaign to see lifecycle events.</div>
       ) : (
         <div className="timeline">

@@ -4,6 +4,7 @@ import { ContributorSummary } from "./ContributorSummary";
 
 interface CampaignDetailPanelProps {
   campaign: Campaign | null;
+  isLoading?: boolean;
   actionError?: string | null;
   actionMessage?: string | null;
   isPledgePending?: boolean;
@@ -14,6 +15,7 @@ interface CampaignDetailPanelProps {
 
 export function CampaignDetailPanel({
   campaign,
+  isLoading,
   actionError,
   actionMessage,
   isPledgePending = false,
@@ -29,6 +31,32 @@ export function CampaignDetailPanel({
     setContributor("");
     setAmount("25");
   }, [campaign?.id]);
+
+  if (isLoading) {
+    return (
+      <section className="card detail-panel">
+        <div className="section-heading">
+          <h2>
+            <div className="skeleton skeleton-line" style={{ width: 220 }} />
+          </h2>
+          <p className="muted">
+            <div className="skeleton skeleton-line" style={{ width: 320, height: 14 }} />
+          </p>
+        </div>
+
+        <div className="detail-grid">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <article key={i} className="detail-stat">
+              <div className="skeleton skeleton-line" style={{ width: 120 }} />
+              <div className="skeleton skeleton-line" style={{ width: 80, height: 18, marginTop: 8 }} />
+            </article>
+          ))}
+        </div>
+
+        <div className="skeleton" style={{ height: 120, borderRadius: 12 }} />
+      </section>
+    );
+  }
 
   if (!campaign) {
     return <section className="card empty-state">Pick a campaign from the board to manage it.</section>;
@@ -91,7 +119,7 @@ export function CampaignDetailPanel({
         </article>
       </div>
 
-      <ContributorSummary pledges={activeCampaign.pledges} assetCode={activeCampaign.assetCode} />
+  <ContributorSummary pledges={activeCampaign.pledges} assetCode={activeCampaign.assetCode} isLoading={isLoading} />
 
       <form className="form-grid" onSubmit={handlePledge}>
         <label className="field-group">

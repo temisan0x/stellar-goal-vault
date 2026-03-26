@@ -4,6 +4,7 @@ interface CampaignsTableProps {
   campaigns: Campaign[];
   selectedCampaignId: string | null;
   onSelect: (campaignId: string) => void;
+  isLoading?: boolean;
 }
 
 function formatTimestamp(unixSeconds: number): string {
@@ -14,7 +15,65 @@ export function CampaignsTable({
   campaigns,
   selectedCampaignId,
   onSelect,
+  isLoading,
 }: CampaignsTableProps) {
+  if (isLoading) {
+    return (
+      <section className="card">
+        <div className="section-heading">
+          <h2>Campaign board</h2>
+          <p className="muted">Loading campaigns...</p>
+        </div>
+
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Campaign</th>
+                <th>Creator</th>
+                <th>Funding</th>
+                <th>Status</th>
+                <th>Deadline</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {Array.from({ length: 4 }).map((_, idx) => (
+                <tr key={idx}>
+                  <td>
+                    <div className="stacked">
+                      <div className="skeleton skeleton-line" style={{ width: 160 }} />
+                      <div className="skeleton skeleton-line" style={{ width: 80, height: 12 }} />
+                    </div>
+                  </td>
+                  <td>
+                    <div className="skeleton skeleton-line" style={{ width: 100 }} />
+                  </td>
+                  <td>
+                    <div className="skeleton skeleton-line" style={{ width: 140 }} />
+                    <div className="progress-bar" aria-hidden>
+                      <div style={{ width: `20%` }} />
+                    </div>
+                  </td>
+                  <td>
+                    <div className="skeleton skeleton-line" style={{ width: 80 }} />
+                  </td>
+                  <td>
+                    <div className="skeleton skeleton-line" style={{ width: 120 }} />
+                    <div className="skeleton skeleton-line" style={{ width: 80, height: 12 }} />
+                  </td>
+                  <td>
+                    <div className="skeleton skeleton-line" style={{ width: 64, height: 36 }} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    );
+  }
+
   if (campaigns.length === 0) {
     return (
       <section className="card">
