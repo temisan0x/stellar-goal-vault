@@ -15,6 +15,51 @@ import {
 } from "./services/api";
 import { Campaign, CampaignEvent, OpenIssue } from "./types/campaign";
 
+function round(value: number): number {
+  return Number(value.toFixed(2));
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+function toOptimisticPledgedCampaign(campaign: Campaign, amount: number): Campaign {
+  const nowInSeconds = Math.floor(Date.now() / 1000);
+  const nextPledgedAmount = round(campaign.pledgedAmount + amount);
+  const deadlineReached = nowInSeconds >= campaign.deadline;
+  const status =
+    campaign.claimedAt !== undefined
+      ? "claimed"
+      : nextPledgedAmount >= campaign.targetAmount
+        ? "funded"
+        : deadlineReached
+          ? "failed"
+          : "open";
+
+  return {
+    ...campaign,
+    pledgedAmount: nextPledgedAmount,
+    progress: {
+      ...campaign.progress,
+      status,
+      percentFunded: round((nextPledgedAmount / campaign.targetAmount) * 100),
+      remainingAmount: round(Math.max(0, campaign.targetAmount - nextPledgedAmount)),
+      pledgeCount: campaign.progress.pledgeCount + 1,
+      canPledge: campaign.claimedAt === undefined && !deadlineReached,
+      canClaim:
+        campaign.claimedAt === undefined &&
+        deadlineReached &&
+        nextPledgedAmount >= campaign.targetAmount,
+      canRefund:
+        campaign.claimedAt === undefined &&
+        deadlineReached &&
+        nextPledgedAmount < campaign.targetAmount,
+    },
+  };
+}
+
 function App() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [issues, setIssues] = useState<OpenIssue[]>([]);
@@ -23,6 +68,7 @@ function App() {
   const [createError, setCreateError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [pendingPledgeCampaignId, setPendingPledgeCampaignId] = useState<string | null>(null);
 
   async function refreshCampaigns(nextSelectedId?: string | null) {
     const data = await listCampaigns();
@@ -98,13 +144,55 @@ function App() {
     setActionError(null);
     setActionMessage(null);
 
+    const previousCampaigns = campaigns;
+    const previousHistory = history;
+    const optimisticTimestamp = Math.floor(Date.now() / 1000);
+    const optimisticEvent: CampaignEvent = {
+      id: -Date.now(),
+      campaignId,
+      eventType: "pledged",
+      timestamp: optimisticTimestamp,
+      actor: contributor,
+      amount,
+      metadata: { pending: true },
+    };
+
+    setCampaigns((currentCampaigns) =>
+      currentCampaigns.map((campaign) =>
+        campaign.id === campaignId ? toOptimisticPledgedCampaign(campaign, amount) : campaign,
+      ),
+    );
+    setPendingPledgeCampaignId(campaignId);
+    if (selectedCampaignId === campaignId) {
+      setHistory((currentHistory) => [optimisticEvent, ...currentHistory]);
+    }
+    setActionMessage("Submitting pledge...");
+
+    const pendingStartedAt = Date.now();
+    const minimumPendingMs = 800;
+
     try {
       await addPledge(campaignId, { contributor, amount });
+      const elapsedMs = Date.now() - pendingStartedAt;
+      if (elapsedMs < minimumPendingMs) {
+        await delay(minimumPendingMs - elapsedMs);
+      }
       await refreshCampaigns(campaignId);
       await refreshHistory(campaignId);
+      setPendingPledgeCampaignId(null);
       setActionMessage("Pledge recorded in the local goal vault.");
     } catch (error) {
+      const elapsedMs = Date.now() - pendingStartedAt;
+      if (elapsedMs < minimumPendingMs) {
+        await delay(minimumPendingMs - elapsedMs);
+      }
+      setCampaigns(previousCampaigns);
+      if (selectedCampaignId === campaignId) {
+        setHistory(previousHistory);
+      }
+      setPendingPledgeCampaignId(null);
       setActionError(error instanceof Error ? error.message : "Failed to add pledge.");
+      setActionMessage(null);
     }
   }
 
@@ -172,6 +260,7 @@ function App() {
           campaign={selectedCampaign}
           actionError={actionError}
           actionMessage={actionMessage}
+          isPledgePending={pendingPledgeCampaignId === selectedCampaignId}
           onPledge={handlePledge}
           onClaim={handleClaim}
           onRefund={handleRefund}

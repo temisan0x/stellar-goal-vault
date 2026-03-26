@@ -193,6 +193,15 @@ textarea {
   border: 1px solid #bbf7d0;
 }
 
+.pending-note {
+  color: #92400e;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 0.95rem;
+}
+
 .empty-state {
   color: #475569;
   background: #f8fafc;
@@ -317,6 +326,10 @@ td {
   display: grid;
   grid-template-columns: 12px 1fr;
   gap: 12px;
+}
+
+.timeline-item.pending .timeline-dot {
+  background: #f59e0b;
 }
 
 .timeline-dot {

@@ -35,11 +35,16 @@ export function CampaignTimeline({ history }: CampaignTimelineProps) {
         <div className="empty-state">Select a campaign to see lifecycle events.</div>
       ) : (
         <div className="timeline">
-          {history.map((event) => (
-            <article key={event.id} className="timeline-item">
+          {history.map((event) => {
+            const isPending = event.metadata?.pending === true;
+            return (
+            <article key={event.id} className={`timeline-item ${isPending ? "pending" : ""}`}>
               <div className="timeline-dot" aria-hidden />
               <div className="timeline-copy">
-                <strong>{describeEvent(event)}</strong>
+                <strong>
+                  {describeEvent(event)}
+                  {isPending ? " (pending...)" : ""}
+                </strong>
                 <span className="muted">{formatTimestamp(event.timestamp)}</span>
                 <span className="muted">
                   {event.actor ? `Actor: ${event.actor.slice(0, 10)}...` : "System event"}
@@ -47,7 +52,8 @@ export function CampaignTimeline({ history }: CampaignTimelineProps) {
                 </span>
               </div>
             </article>
-          ))}
+            );
+          })}
         </div>
       )}
     </section>
