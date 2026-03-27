@@ -1,6 +1,7 @@
 import fs from "fs";
+import http from "http";
 import path from "path";
-import { beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const TEST_DB_PATH = path.join("/tmp", `stellar-goal-vault-campaign-filters-${process.pid}.db`);
 
@@ -13,10 +14,12 @@ type DbModule = typeof import("./services/db");
 
 let filterCampaignList: IndexModule["filterCampaignList"];
 let parseCampaignListFilters: IndexModule["parseCampaignListFilters"];
+let app: IndexModule["app"];
 let createCampaign: CampaignStoreModule["createCampaign"];
 let addPledge: CampaignStoreModule["addPledge"];
 let calculateProgress: CampaignStoreModule["calculateProgress"];
 let getDb: DbModule["getDb"];
+let dbModule: DbModule;
 
 const CREATOR = `G${"A".repeat(55)}`;
 const CONTRIBUTOR = `G${"B".repeat(55)}`;
@@ -24,9 +27,10 @@ const CONTRIBUTOR = `G${"B".repeat(55)}`;
 beforeAll(async () => {
   fs.rmSync(TEST_DB_PATH, { force: true });
 
-  ({ filterCampaignList, parseCampaignListFilters } = await import("./index"));
+  ({ app, filterCampaignList, parseCampaignListFilters } = await import("./index"));
   ({ createCampaign, addPledge, calculateProgress } = await import("./services/campaignStore"));
-  ({ getDb } = await import("./services/db"));
+  dbModule = await import("./services/db");
+  ({ getDb } = dbModule);
 });
 
 beforeEach(() => {
@@ -151,5 +155,91 @@ describe("campaign list filters", () => {
     expect(filtered[0].id).toBe(fixtures.fundedUsdc.id);
     expect(filtered[0].assetCode).toBe("USDC");
     expect(filtered[0].progress.status).toBe("funded");
+  });
+});
+
+describe("GET /api/health", () => {
+  it("returns service metadata, uptime, and database reachability", async () => {
+    const server = http.createServer(app);
+
+    await new Promise<void>((resolve) => server.listen(0, resolve));
+
+    try {
+      const address = server.address();
+      if (!address || typeof address === "string") {
+        throw new Error("Failed to resolve test server address.");
+      }
+
+      const response = await fetch(`http://127.0.0.1:${address.port}/api/health`);
+      const body = (await response.json()) as {
+        service: string;
+        status: string;
+        timestamp: string;
+        uptimeSeconds: number;
+        database: {
+          status: string;
+          reachable: boolean;
+        };
+      };
+
+      expect(response.status).toBe(200);
+      expect(body).toMatchObject({
+        service: "stellar-goal-vault-backend",
+        status: "ok",
+        database: {
+          status: "up",
+          reachable: true,
+        },
+      });
+      expect(typeof body.timestamp).toBe("string");
+      expect(typeof body.uptimeSeconds).toBe("number");
+      expect(body.uptimeSeconds).toBeGreaterThanOrEqual(0);
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
+      );
+    }
+  });
+
+  it("returns 503 when the database probe fails", async () => {
+    const server = http.createServer(app);
+    const checkDbHealthSpy = vi.spyOn(dbModule, "checkDbHealth").mockReturnValue({
+      status: "down",
+      reachable: false,
+    });
+
+    await new Promise<void>((resolve) => server.listen(0, resolve));
+
+    try {
+      const address = server.address();
+      if (!address || typeof address === "string") {
+        throw new Error("Failed to resolve test server address.");
+      }
+
+      const response = await fetch(`http://127.0.0.1:${address.port}/api/health`);
+      const body = (await response.json()) as {
+        service: string;
+        status: string;
+        database: {
+          status: string;
+          reachable: boolean;
+        };
+      };
+
+      expect(response.status).toBe(503);
+      expect(body).toMatchObject({
+        service: "stellar-goal-vault-backend",
+        status: "degraded",
+        database: {
+          status: "down",
+          reachable: false,
+        },
+      });
+    } finally {
+      checkDbHealthSpy.mockRestore();
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
+      );
+    }
   });
 });

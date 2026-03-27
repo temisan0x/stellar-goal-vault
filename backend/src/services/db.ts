@@ -6,6 +6,8 @@ const DB_PATH =
 
 let db: any = null;
 
+export type DbHealthStatus = "up" | "down";
+
 export function getDb(): any {
   if (!db) {
     throw new Error("Database not initialized. Call initDb() first.");
@@ -31,6 +33,26 @@ export function initDb(): void {
   db.pragma("foreign_keys = ON");
 
   migrate(db);
+}
+
+export function checkDbHealth(): {
+  status: DbHealthStatus;
+  reachable: boolean;
+} {
+  try {
+    const database = getDb();
+    database.prepare("SELECT 1 AS ok").get();
+
+    return {
+      status: "up",
+      reachable: true,
+    };
+  } catch {
+    return {
+      status: "down",
+      reachable: false,
+    };
+  }
 }
 
 function migrate(database: any): void {
