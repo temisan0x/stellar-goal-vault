@@ -160,18 +160,7 @@ app.get("/api/health", (_req: Request, res: Response) => {
 });
 
 app.get("/api/campaigns", (req: Request, res: Response) => {
-  const filters = parseCampaignListFilters({
-    asset: req.query.asset,
-    status: req.query.status,
-  });
-  const searchQuery = normalizeQueryValue(req.query.q);
-  const data = filterCampaignList(
-    listCampaigns({ searchQuery }).map((campaign) => ({
-      ...campaign,
-      progress: calculateProgress(campaign),
-    })),
-    filters,
-  );
+
 
   res.json({ data });
 });
