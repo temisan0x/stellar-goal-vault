@@ -1,5 +1,5 @@
 import { getDb, initDb } from "./db";
-import { getCampaignHistory, recordEvent } from "./eventHistory";
+import { getCampaignHistory, recordEvent, BlockchainMetadata } from "./eventHistory";
 
 export type CampaignStatus = "open" | "funded" | "claimed" | "failed";
 
@@ -274,7 +274,7 @@ export function createCampaign(input: CampaignInput): CampaignRecord {
     assetCode: campaign.assetCode,
     targetAmount: campaign.targetAmount,
     deadline: campaign.deadline,
-  });
+  }, { source: 'local' } as BlockchainMetadata);
 
   return campaign;
 }
@@ -304,7 +304,7 @@ export function addPledge(campaignId: string, input: PledgeInput): CampaignRecor
 
   recordEvent(campaignId, "pledged", createdAt, input.contributor, round(input.amount), {
     newTotalPledged: round(campaign.pledgedAmount + input.amount),
-  });
+  }, { source: 'local' } as BlockchainMetadata);
 
   return getCampaign(campaignId)!;
 }
@@ -329,7 +329,7 @@ export function claimCampaign(campaignId: string, creator: string): CampaignReco
 
   recordEvent(campaignId, "claimed", claimedAt, creator, campaign.pledgedAmount, {
     targetAmount: campaign.targetAmount,
-  });
+  }, { source: 'local' } as BlockchainMetadata);
 
   return getCampaign(campaignId)!;
 }
@@ -377,7 +377,7 @@ export function refundContributor(campaignId: string, contributor: string): {
 
   recordEvent(campaignId, "refunded", refundedAt, contributor, refundedAmount, {
     refundedPledgeCount: refundablePledges.length,
-  });
+  }, { source: 'local' } as BlockchainMetadata);
 
   return {
     campaign: getCampaign(campaignId)!,
