@@ -4,11 +4,13 @@ import path from "path";
 const DB_PATH =
   process.env.DB_PATH || path.join(__dirname, "..", "..", "data", "campaigns.db");
 
-let db: any = null;
+type SQLiteDatabase = ReturnType<typeof Database>;
+
+let db: SQLiteDatabase | null = null;
 
 export type DbHealthStatus = "up" | "down";
 
-export function getDb(): any {
+export function getDb(): SQLiteDatabase {
   if (!db) {
     throw new Error("Database not initialized. Call initDb() first.");
   }
@@ -55,7 +57,7 @@ export function checkDbHealth(): {
   }
 }
 
-function migrate(database: any): void {
+function migrate(database: SQLiteDatabase): void {
   database.exec(`
     CREATE TABLE IF NOT EXISTS campaigns (
       id              TEXT PRIMARY KEY,
@@ -72,23 +74,24 @@ function migrate(database: any): void {
     );
 
     CREATE TABLE IF NOT EXISTS pledges (
-      id              INTEGER PRIMARY KEY AUTOINCREMENT,
-      campaign_id     TEXT NOT NULL,
-      contributor     TEXT NOT NULL,
-      amount          REAL NOT NULL,
-      created_at      INTEGER NOT NULL,
-      refunded_at     INTEGER,
+      id                INTEGER PRIMARY KEY AUTOINCREMENT,
+      campaign_id       TEXT NOT NULL,
+      contributor       TEXT NOT NULL,
+      amount            REAL NOT NULL,
+      created_at        INTEGER NOT NULL,
+      refunded_at       INTEGER,
+      transaction_hash  TEXT,
       FOREIGN KEY (campaign_id) REFERENCES campaigns(id)
     );
 
     CREATE TABLE IF NOT EXISTS campaign_events (
-      id              INTEGER PRIMARY KEY AUTOINCREMENT,
-      campaign_id     TEXT NOT NULL,
-      event_type      TEXT NOT NULL,
-      timestamp       INTEGER NOT NULL,
-      actor           TEXT,
-      amount          REAL,
-      metadata        TEXT,
+      id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+      campaign_id         TEXT NOT NULL,
+      event_type          TEXT NOT NULL,
+      timestamp           INTEGER NOT NULL,
+      actor               TEXT,
+      amount              REAL,
+      metadata            TEXT,
       blockchain_metadata TEXT,
       FOREIGN KEY (campaign_id) REFERENCES campaigns(id)
     );
@@ -100,10 +103,24 @@ function migrate(database: any): void {
     CREATE INDEX IF NOT EXISTS idx_campaign_events_ledger ON campaign_events(json_extract(blockchain_metadata, '$.ledgerNumber'));
   `);
 
-  // Add blockchain_metadata column to existing tables if it doesn't exist
+  const pledgeColumns = database
+    .prepare(`PRAGMA table_info(pledges)`)
+    .all() as Array<{ name: string }>;
+
+  const hasTransactionHash = pledgeColumns.some((column) => column.name === "transaction_hash");
+  if (!hasTransactionHash) {
+    database.exec(`ALTER TABLE pledges ADD COLUMN transaction_hash TEXT`);
+  }
+
+  database.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_pledges_transaction_hash
+    ON pledges(transaction_hash)
+    WHERE transaction_hash IS NOT NULL
+  `);
+
   try {
     database.exec(`ALTER TABLE campaign_events ADD COLUMN blockchain_metadata TEXT;`);
-  } catch (error) {
-    // Column already exists, ignore error
+  } catch {
+    // Column already exists, ignore error.
   }
 }

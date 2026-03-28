@@ -1,38 +1,59 @@
 import { FormEvent, useEffect, useState } from "react";
-import { MousePointer2 } from "lucide-react";
-import { Campaign, ApiError } from "../types/campaign";
+import { MousePointer2, Wallet } from "lucide-react";
+import { AppConfig, ApiError, Campaign } from "../types/campaign";
 import { ContributorSummary } from "./ContributorSummary";
 import { EmptyState } from "./EmptyState";
 
 interface CampaignDetailPanelProps {
   campaign: Campaign | null;
+  appConfig: AppConfig | null;
+  connectedWallet: string | null;
+  isConnectingWallet?: boolean;
   isLoading?: boolean;
   actionError?: ApiError | null;
   actionMessage?: string | null;
   isPledgePending?: boolean;
-  onPledge: (campaignId: string, contributor: string, amount: number) => Promise<void>;
+  onConnectWallet: () => Promise<void>;
+  onPledge: (campaignId: string, amount: number) => Promise<void>;
   onClaim: (campaign: Campaign) => Promise<void>;
   onRefund: (campaignId: string, contributor: string) => Promise<void>;
 }
 
+function networkName(config: AppConfig | null): string {
+  if (!config) {
+    return "network";
+  }
+  if (config.networkPassphrase === "Test SDF Network ; September 2015") {
+    return "Stellar Testnet";
+  }
+  if (config.networkPassphrase === "Public Global Stellar Network ; September 2015") {
+    return "Stellar Mainnet";
+  }
+  return "Configured network";
+}
+
 export function CampaignDetailPanel({
   campaign,
-  isLoading,
+  appConfig,
+  connectedWallet,
+  isConnectingWallet = false,
+  isLoading = false,
   actionError,
   actionMessage,
   isPledgePending = false,
+  onConnectWallet,
   onPledge,
   onClaim,
   onRefund,
 }: CampaignDetailPanelProps) {
-  const [contributor, setContributor] = useState("");
-  const [amount, setAmount] = useState("25");
+  const [pledgeAmount, setPledgeAmount] = useState("25");
+  const [refundContributor, setRefundContributor] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    setContributor("");
-    setAmount("25");
-  }, [campaign?.id]);
+    setPledgeAmount("25");
+    setRefundContributor(connectedWallet ?? "");
+  }, [campaign?.id, connectedWallet]);
 
   if (isLoading) {
     return (
@@ -41,21 +62,19 @@ export function CampaignDetailPanel({
           <h2>
             <div className="skeleton skeleton-line" style={{ width: 220 }} />
           </h2>
-          <p className="muted">
-            <div className="skeleton skeleton-line" style={{ width: 320, height: 14 }} />
-          </p>
+          <div className="skeleton skeleton-line" style={{ width: 320, height: 14 }} />
         </div>
-
         <div className="detail-grid">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <article key={i} className="detail-stat">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <article key={index} className="detail-stat">
               <div className="skeleton skeleton-line" style={{ width: 120 }} />
-              <div className="skeleton skeleton-line" style={{ width: 80, height: 18, marginTop: 8 }} />
+              <div
+                className="skeleton skeleton-line"
+                style={{ width: 80, height: 18, marginTop: 8 }}
+              />
             </article>
           ))}
         </div>
-
-        <div className="skeleton" style={{ height: 120, borderRadius: 12 }} />
       </section>
     );
   }
@@ -65,19 +84,20 @@ export function CampaignDetailPanel({
       <EmptyState
         variant="card"
         icon={MousePointer2}
+        title="Campaign actions"
         message="Pick a campaign from the board to manage it."
       />
     );
   }
 
   const activeCampaign = campaign;
+  const walletReady = Boolean(appConfig?.walletIntegrationReady);
 
   async function handlePledge(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsSubmitting(true);
     try {
-      await onPledge(activeCampaign.id, contributor.trim(), Number(amount));
-      setAmount("25");
+      await onPledge(activeCampaign.id, Number(pledgeAmount));
     } finally {
       setIsSubmitting(false);
     }
@@ -86,7 +106,7 @@ export function CampaignDetailPanel({
   async function handleRefund() {
     setIsSubmitting(true);
     try {
-      await onRefund(activeCampaign.id, contributor.trim());
+      await onRefund(activeCampaign.id, refundContributor.trim());
     } finally {
       setIsSubmitting(false);
     }
@@ -127,17 +147,51 @@ export function CampaignDetailPanel({
         </article>
       </div>
 
-  <ContributorSummary pledges={activeCampaign.pledges} assetCode={activeCampaign.assetCode} isLoading={isLoading} />
+      <div className="wallet-status">
+        <div>
+          <h3 className="wallet-status-title">Freighter pledge flow</h3>
+          <p className="muted">
+            Simulate, sign, and submit the Soroban pledge from the contributor wallet.
+          </p>
+        </div>
+        {connectedWallet ? (
+          <div className="wallet-connected">
+            <span className="badge badge-funded">Connected</span>
+            <span className="mono">{connectedWallet}</span>
+          </div>
+        ) : (
+          <button
+            className="btn-secondary"
+            type="button"
+            disabled={isConnectingWallet || !walletReady}
+            onClick={onConnectWallet}
+          >
+            <Wallet size={18} />
+            {isConnectingWallet ? "Connecting..." : "Connect Freighter"}
+          </button>
+        )}
+      </div>
+
+      <p className="muted">
+        {walletReady
+          ? `Contract ${appConfig?.contractId ?? ""} on ${networkName(appConfig)}.`
+          : "Wallet signing is not configured yet. Set CONTRACT_ID and SOROBAN_RPC_URL on the backend first."}
+      </p>
+
+      <ContributorSummary
+        pledges={activeCampaign.pledges}
+        assetCode={activeCampaign.assetCode}
+        isLoading={isLoading}
+      />
 
       <form className="form-grid" onSubmit={handlePledge}>
         <label className="field-group">
-          <span>Contributor account</span>
+          <span>Connected contributor</span>
           <input
             type="text"
-            value={contributor}
-            onChange={(event) => setContributor(event.target.value)}
-            placeholder="G... contributor public key"
-            required
+            value={connectedWallet ?? ""}
+            placeholder="Connect Freighter to use the pledge flow"
+            readOnly
           />
         </label>
 
@@ -147,8 +201,8 @@ export function CampaignDetailPanel({
             type="number"
             min="0.01"
             step="0.01"
-            value={amount}
-            onChange={(event) => setAmount(event.target.value)}
+            value={pledgeAmount}
+            onChange={(event) => setPledgeAmount(event.target.value)}
             required
           />
         </label>
@@ -157,9 +211,15 @@ export function CampaignDetailPanel({
           <button
             className="btn-primary"
             type="submit"
-            disabled={isSubmitting || !activeCampaign.progress.canPledge}
+            disabled={
+              isSubmitting ||
+              isPledgePending ||
+              !activeCampaign.progress.canPledge ||
+              !connectedWallet ||
+              !walletReady
+            }
           >
-            {isPledgePending ? "Submitting..." : "Add pledge"}
+            {isPledgePending ? "Simulating / waiting..." : "Sign pledge with Freighter"}
           </button>
           <button
             className="btn-ghost"
@@ -169,34 +229,67 @@ export function CampaignDetailPanel({
           >
             Claim vault
           </button>
+        </div>
+      </form>
+
+      <div className="form-grid" style={{ marginTop: 16 }}>
+        <label className="field-group">
+          <span>Refund contributor</span>
+          <input
+            type="text"
+            value={refundContributor}
+            onChange={(event) => setRefundContributor(event.target.value)}
+            placeholder="G... contributor public key"
+          />
+        </label>
+
+        <div className="action-row">
           <button
             className="btn-ghost"
             type="button"
-            disabled={isSubmitting || !activeCampaign.progress.canRefund || contributor.trim().length === 0}
+            disabled={
+              isSubmitting ||
+              !activeCampaign.progress.canRefund ||
+              refundContributor.trim().length === 0
+            }
             onClick={handleRefund}
           >
             Refund contributor
           </button>
         </div>
-      </form>
+      </div>
 
       {isPledgePending ? (
-        <p className="pending-note">Pledge is pending confirmation and will reconcile automatically.</p>
+        <p className="pending-note">
+          The pledge transaction is in flight. The local campaign state will refresh after
+          the Soroban transaction confirms.
+        </p>
       ) : null}
+
       {actionError ? (
         <div className="form-error">
           <p>{actionError.message}</p>
-          {actionError.code && (
+          {actionError.details && actionError.details.length > 0 ? (
+            <ul className="error-details">
+              {actionError.details.map((detail, index) => (
+                <li key={`${detail.field}-${index}`}>
+                  <strong>{detail.field}:</strong> {detail.message}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {actionError.code ? (
             <small className="error-meta">
               Code: {actionError.code}
-              {actionError.requestId && ` | Request ID: ${actionError.requestId}`}
+              {actionError.requestId ? ` | Request ID: ${actionError.requestId}` : ""}
             </small>
-          )}
+          ) : null}
         </div>
       ) : null}
+
       {actionMessage ? <p className="form-success">{actionMessage}</p> : null}
 
-      {activeCampaign.metadata?.imageUrl && (
+      {activeCampaign.metadata?.imageUrl ? (
         <div className="campaign-image-container">
           <img
             src={activeCampaign.metadata.imageUrl}
@@ -204,9 +297,9 @@ export function CampaignDetailPanel({
             className="campaign-image"
           />
         </div>
-      )}
+      ) : null}
 
-      {activeCampaign.metadata?.externalLink && (
+      {activeCampaign.metadata?.externalLink ? (
         <div className="external-link-container">
           <a
             href={activeCampaign.metadata.externalLink}
@@ -214,10 +307,10 @@ export function CampaignDetailPanel({
             rel="noopener noreferrer"
             className="btn-ghost"
           >
-            Visit Project Website
+            Visit project website
           </a>
         </div>
-      )}
+      ) : null}
     </section>
   );
 }

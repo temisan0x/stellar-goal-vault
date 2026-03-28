@@ -18,6 +18,7 @@ export interface Pledge {
   amount: number;
   createdAt: number;
   refundedAt?: number;
+  transactionHash?: string;
 }
 
 export interface Campaign {
@@ -45,7 +46,7 @@ export interface BlockchainMetadata {
   ledgerCloseTime?: number;
   eventIndex?: number;
   contractId?: string;
-  source?: 'local' | 'soroban';
+  source?: "local" | "soroban";
 }
 
 export interface CampaignEvent {
@@ -55,7 +56,12 @@ export interface CampaignEvent {
   timestamp: number;
   actor?: string;
   amount?: number;
-  metadata?: Record<string, unknown>;
+  metadata?: Record<string, unknown> & {
+    pending?: boolean;
+    txHash?: string;
+    onChain?: boolean;
+    reconciled?: boolean;
+  };
   blockchainMetadata?: BlockchainMetadata;
 }
 
@@ -75,6 +81,31 @@ export interface CreateCampaignPayload {
 export interface CreatePledgePayload {
   contributor: string;
   amount: number;
+}
+
+export interface ReconcilePledgePayload extends CreatePledgePayload {
+  transactionHash: string;
+  confirmedAt?: number;
+}
+
+export interface AppConfig {
+  allowedAssets: string[];
+  sorobanRpcUrl: string;
+  contractId: string;
+  networkPassphrase: string;
+  contractAmountDecimals: number;
+  walletIntegrationReady: boolean;
+}
+
+export interface WalletConnection {
+  publicKey: string;
+  networkPassphrase?: string;
+  sorobanRpcUrl?: string;
+}
+
+export interface PledgeTransactionResult {
+  transactionHash: string;
+  confirmedAt: number;
 }
 
 export interface OpenIssue {

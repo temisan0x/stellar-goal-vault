@@ -1,8 +1,9 @@
-import { FormEvent, useState, useEffect } from "react";
-import { CreateCampaignPayload, ApiError } from "../types/campaign";
+import { FormEvent, useEffect, useState } from "react";
+import { ApiError, CreateCampaignPayload } from "../types/campaign";
 
 interface CreateCampaignFormProps {
   onCreate: (payload: CreateCampaignPayload) => Promise<void>;
+  allowedAssets: string[];
   apiError?: ApiError | null;
 }
 
@@ -19,25 +20,28 @@ const INITIAL_VALUES = {
 
 export function CreateCampaignForm({
   onCreate,
+  allowedAssets,
   apiError,
 }: CreateCampaignFormProps) {
   const [values, setValues] = useState(INITIAL_VALUES);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [allowedAssets, setAllowedAssets] = useState<string[]>([]);
 
   useEffect(() => {
-    fetch("http://localhost:3001/api/config")
-      .then((res) => res.json())
-      .then((json) => {
-        if (json.data?.allowedAssets) {
-          setAllowedAssets(json.data.allowedAssets);
-          if (json.data.allowedAssets.length > 0) {
-            update("assetCode", json.data.allowedAssets[0]);
-          }
-        }
-      })
-      .catch(console.error);
-  }, []);
+    if (allowedAssets.length === 0) {
+      return;
+    }
+
+    setValues((current) => {
+      if (allowedAssets.includes(current.assetCode)) {
+        return current;
+      }
+
+      return {
+        ...current,
+        assetCode: allowedAssets[0],
+      };
+    });
+  }, [allowedAssets]);
 
   function update(field: keyof typeof INITIAL_VALUES, value: string) {
     setValues((current) => ({ ...current, [field]: value }));
@@ -48,8 +52,7 @@ export function CreateCampaignForm({
     setIsSubmitting(true);
 
     try {
-      const deadline =
-        Math.floor(Date.now() / 1000) + Number(values.deadlineHours) * 3600;
+      const deadline = Math.floor(Date.now() / 1000) + Number(values.deadlineHours) * 3600;
       await onCreate({
         creator: values.creator.trim(),
         title: values.title.trim(),
@@ -63,19 +66,23 @@ export function CreateCampaignForm({
         },
       });
 
-      setValues(INITIAL_VALUES);
+      setValues({
+        ...INITIAL_VALUES,
+        assetCode: allowedAssets[0] ?? INITIAL_VALUES.assetCode,
+      });
     } finally {
       setIsSubmitting(false);
     }
   }
+
+  const assetOptions = allowedAssets.length > 0 ? allowedAssets : ["USDC"];
 
   return (
     <section className="card">
       <div className="section-heading">
         <h2>Create Campaign</h2>
         <p className="muted">
-          Spin up a Stellar goal vault for contributors and prototype the
-          funding lifecycle.
+          Spin up a Stellar goal vault for contributors and prototype the funding lifecycle.
         </p>
       </div>
 
@@ -125,12 +132,11 @@ export function CreateCampaignForm({
               onChange={(event) => update("assetCode", event.target.value)}
               required
             >
-              {allowedAssets.map((asset) => (
+              {assetOptions.map((asset) => (
                 <option key={asset} value={asset}>
                   {asset}
                 </option>
               ))}
-              {allowedAssets.length === 0 && <option value="USDC">USDC</option>}
             </select>
           </label>
 
@@ -184,21 +190,21 @@ export function CreateCampaignForm({
         {apiError ? (
           <div className="form-error">
             <p>{apiError.message}</p>
-            {apiError.details && apiError.details.length > 0 && (
+            {apiError.details && apiError.details.length > 0 ? (
               <ul className="error-details">
                 {apiError.details.map((detail, index) => (
-                  <li key={index}>
+                  <li key={`${detail.field}-${index}`}>
                     <strong>{detail.field}:</strong> {detail.message}
                   </li>
                 ))}
               </ul>
-            )}
-            {apiError.code && (
+            ) : null}
+            {apiError.code ? (
               <small className="error-meta">
                 Code: {apiError.code}
-                {apiError.requestId && ` | Request ID: ${apiError.requestId}`}
+                {apiError.requestId ? ` | Request ID: ${apiError.requestId}` : ""}
               </small>
-            )}
+            ) : null}
           </div>
         ) : null}
 

@@ -4,6 +4,7 @@ import { config } from "../config";
 export const STELLAR_ACCOUNT_REGEX = /^G[A-Z2-7]{55}$/;
 export const ASSET_CODE_REGEX = /^[A-Za-z0-9]{1,12}$/;
 export const CAMPAIGN_ID_REGEX = /^[1-9]\d*$/;
+export const TX_HASH_REGEX = /^[A-Fa-f0-9]{64}$/;
 
 export const campaignIdSchema = z
   .string()
@@ -23,12 +24,9 @@ export const assetCodeSchema = z
   .trim()
   .regex(ASSET_CODE_REGEX, "Asset code must be 1-12 alphanumeric characters.")
   .transform((value: string) => value.toUpperCase())
-  .refine(
-    (code: string) => config.allowedAssets.includes(code),
-    {
-      message: `Asset code is not supported. Supported assets: ${config.allowedAssets.join(", ")}`,
-    },
-  );
+  .refine((code: string) => config.allowedAssets.includes(code), {
+    message: `Asset code is not supported. Supported assets: ${config.allowedAssets.join(", ")}`,
+  });
 
 export const positiveAmountSchema = z.coerce
   .number()
@@ -51,11 +49,27 @@ export const createCampaignPayloadSchema = z.object({
   assetCode: assetCodeSchema,
   targetAmount: positiveAmountSchema,
   deadline: unixTimestampSchema,
+  metadata: z
+    .object({
+      imageUrl: z.string().url().optional(),
+      externalLink: z.string().url().optional(),
+    })
+    .optional(),
 });
 
 export const createPledgePayloadSchema = z.object({
   contributor: stellarAccountIdSchema,
   amount: positiveAmountSchema,
+});
+
+export const reconcilePledgePayloadSchema = z.object({
+  contributor: stellarAccountIdSchema,
+  amount: positiveAmountSchema,
+  transactionHash: z
+    .string()
+    .trim()
+    .regex(TX_HASH_REGEX, "transactionHash must be a 64-character hex hash."),
+  confirmedAt: unixTimestampSchema.optional(),
 });
 
 export const claimCampaignPayloadSchema = z.object({

@@ -587,3 +587,191 @@ tbody tr:hover td {
   .metric-grid { grid-template-columns: 1fr 1fr; }
 }
 
+.layout-grid {
+  grid-template-columns: 1fr;
+  margin-bottom: 40px;
+}
+
+.detail-grid {
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  margin-bottom: 20px;
+}
+
+.detail-stat {
+  padding: 18px;
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-md);
+  background: rgba(15, 23, 42, 0.45);
+  display: grid;
+  gap: 8px;
+}
+
+.detail-stat span {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.row {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.wallet-status {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.wallet-status-title {
+  margin: 0 0 4px;
+  font-size: 1.05rem;
+}
+
+.wallet-connected {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.board-controls,
+.issue-list,
+.chip-row,
+.timeline {
+  display: grid;
+  gap: 16px;
+}
+
+.stacked {
+  display: grid;
+  gap: 4px;
+}
+
+.progress-copy {
+  margin-bottom: 10px;
+}
+
+.progress-bar > div {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--primary), #22c55e);
+}
+
+.badge,
+.chip,
+.chip-emphasis {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+
+.timeline-item {
+  display: grid;
+  grid-template-columns: 14px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.timeline-copy {
+  display: grid;
+  gap: 6px;
+}
+
+.timeline-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  margin-top: 4px;
+}
+
+.issue-topline {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.chip-row {
+  grid-auto-flow: column;
+  justify-content: start;
+  gap: 10px;
+}
+
+.chip,
+.chip-emphasis {
+  padding: 6px 12px;
+  font-size: 0.75rem;
+}
+
+.campaign-image-container,
+.external-link-container {
+  margin-top: 20px;
+}
+
+.campaign-image {
+  width: 100%;
+  max-height: 280px;
+  object-fit: cover;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-glass);
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.05),
+    rgba(255, 255, 255, 0.12),
+    rgba(255, 255, 255, 0.05)
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+}
+
+.skeleton-line {
+  height: 12px;
+  border-radius: 999px;
+}
+
+@keyframes shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+@media (max-width: 767px) {
+  .app-shell {
+    padding: 24px 16px 56px;
+  }
+
+  .metric-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .card,
+  .metric-card {
+    padding: 24px;
+  }
+
+  .table-wrap {
+    margin: 0 -12px;
+    padding: 0 12px;
+  }
+}
+

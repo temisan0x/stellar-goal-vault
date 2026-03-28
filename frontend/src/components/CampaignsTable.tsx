@@ -1,8 +1,9 @@
-import { useState, useMemo } from "react";
+import { useMemo, useState } from "react";
 import { LayoutGrid } from "lucide-react";
 import { Campaign } from "../types/campaign";
-import { EmptyState } from "./EmptyState";
 import { AssetFilterDropdown } from "./AssetFilterDropdown";
+import { EmptyState } from "./EmptyState";
+import { applyFilters, getDistinctAssetCodes } from "./campaignsTableUtils";
 
 interface CampaignsTableProps {
   campaigns: Campaign[];
@@ -19,21 +20,25 @@ export function CampaignsTable({
   campaigns,
   selectedCampaignId,
   onSelect,
-  isLoading,
+  isLoading = false,
 }: CampaignsTableProps) {
-  const [selectedAssetCode, setSelectedAssetCode] = useState<string>("");
+  const [selectedAssetCode, setSelectedAssetCode] = useState("");
+  const distinctAssetCodes = useMemo(() => getDistinctAssetCodes(campaigns), [campaigns]);
+  const filteredCampaigns = useMemo(
+    () => applyFilters(campaigns, selectedAssetCode, ""),
+    [campaigns, selectedAssetCode],
+  );
 
-  const isEmpty = campaigns.length === 0;
-
-  const distinctAssetCodes = useMemo(() => {
-    const codes = new Set(campaigns.map((c) => c.assetCode));
-    return Array.from(codes).sort();
-  }, [campaigns]);
-
-  const filteredCampaigns = useMemo(() => {
-    if (!selectedAssetCode || selectedAssetCode === "") return campaigns;
-    return campaigns.filter((c) => c.assetCode === selectedAssetCode);
-  }, [campaigns, selectedAssetCode]);
+  if (isLoading) {
+    return (
+      <section className="card">
+        <div className="section-heading">
+          <h2>Campaign board</h2>
+          <p className="muted">Loading campaigns...</p>
+        </div>
+      </section>
+    );
+  }
 
   if (campaigns.length === 0) {
     return (
@@ -50,16 +55,9 @@ export function CampaignsTable({
     <section className="card">
       <div className="section-heading">
         <h2>Campaign board</h2>
-        {isEmpty ? (
-          <p className="muted">
-            No campaigns yet. Create the first vault to make this board active.
-          </p>
-        ) : (
-          <p className="muted">
-            Monitor progress and open one campaign at a time in the action
-            panel.
-          </p>
-        )}
+        <p className="muted">
+          Monitor progress and open one campaign at a time in the action panel.
+        </p>
       </div>
 
       <div className="board-controls">
@@ -67,12 +65,12 @@ export function CampaignsTable({
           options={distinctAssetCodes}
           value={selectedAssetCode}
           onChange={setSelectedAssetCode}
-          disabled={isEmpty}
+          disabled={campaigns.length === 0}
         />
       </div>
 
-      {!isEmpty && filteredCampaigns.length === 0 ? (
-        <p className="muted">No campaigns match the current filters.</p>
+      {filteredCampaigns.length === 0 ? (
+        <p className="muted">No campaigns match the current asset filter.</p>
       ) : (
         <div className="table-wrap">
           <table>
@@ -98,8 +96,7 @@ export function CampaignsTable({
                   <td className="mono">{campaign.creator.slice(0, 8)}...</td>
                   <td>
                     <div className="progress-copy">
-                      {campaign.pledgedAmount} / {campaign.targetAmount}{" "}
-                      {campaign.assetCode}
+                      {campaign.pledgedAmount} / {campaign.targetAmount} {campaign.assetCode}
                     </div>
                     <div className="progress-bar" aria-hidden>
                       <div
@@ -108,9 +105,7 @@ export function CampaignsTable({
                         }}
                       />
                     </div>
-                    <span className="muted">
-                      {campaign.progress.percentFunded}% funded
-                    </span>
+                    <span className="muted">{campaign.progress.percentFunded}% funded</span>
                   </td>
                   <td>
                     <span className={`badge badge-${campaign.progress.status}`}>
@@ -119,16 +114,12 @@ export function CampaignsTable({
                   </td>
                   <td className="stacked">
                     <span>{formatTimestamp(campaign.deadline)}</span>
-                    <span className="muted">
-                      {campaign.progress.hoursLeft}h left
-                    </span>
+                    <span className="muted">{campaign.progress.hoursLeft}h left</span>
                   </td>
                   <td>
                     <button
                       className={
-                        selectedCampaignId === campaign.id
-                          ? "btn-secondary"
-                          : "btn-ghost"
+                        selectedCampaignId === campaign.id ? "btn-secondary" : "btn-ghost"
                       }
                       type="button"
                       onClick={() => onSelect(campaign.id)}

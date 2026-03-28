@@ -1,8 +1,9 @@
 import cors from "cors";
 import "dotenv/config";
 import express, { Request, Response } from "express";
-import { config } from "./config";
+import { randomUUID } from "crypto";
 import { z } from "zod";
+import { config, walletIntegrationReady } from "./config";
 import {
   addPledge,
   calculateProgress,
@@ -14,33 +15,33 @@ import {
   getCampaignWithProgress,
   initCampaignStore,
   listCampaigns,
+  reconcileOnChainPledge,
   refundContributor,
 } from "./services/campaignStore";
-import { startEventIndexer } from "./services/eventIndexer";
 import { getCampaignHistory } from "./services/eventHistory";
+import { startEventIndexer } from "./services/eventIndexer";
 import { fetchOpenIssues } from "./services/openIssues";
+import { AppError, ApiErrorResponse } from "./types/errors";
 import {
   campaignIdSchema,
   claimCampaignPayloadSchema,
   createCampaignPayloadSchema,
   createPledgePayloadSchema,
   paginationSchema,
+  reconcilePledgePayloadSchema,
   refundPayloadSchema,
   zodIssuesToErrorMessage,
   zodIssuesToValidationIssues,
 } from "./validation/schemas";
-import { AppError, ApiErrorResponse } from "./types/errors";
-import { randomUUID } from "crypto";
 import { checkDbHealth } from "./services/db";
 
 export const app = express();
-const port = Number(process.env.PORT ?? 3001);
+const port = Number(process.env.PORT ?? config.port);
 const CAMPAIGN_STATUSES: CampaignStatus[] = ["open", "funded", "claimed", "failed"];
 
 type CampaignListItem = ReturnType<typeof calculateProgress> extends infer Progress
   ? CampaignRecord & { progress: Progress }
   : never;
-
 
 // Initialize DB
 initCampaignStore();
@@ -49,11 +50,10 @@ app.use(
   cors({
     origin: config.corsAllowedOrigins,
     credentials: true,
-  })
+  }),
 );
 app.use(express.json());
 
-// Request ID middleware
 app.use((req: Request & { requestId?: string }, _res: Response, next: express.NextFunction) => {
   req.requestId = randomUUID();
   next();
@@ -137,7 +137,6 @@ export function parseCampaignListFilters(query: {
   };
 }
 
-
 export function filterCampaignList(
   campaigns: CampaignListItem[],
   filters: {
@@ -148,7 +147,6 @@ export function filterCampaignList(
   return campaigns.filter((campaign) => {
     const matchesAsset = !filters.asset || campaign.assetCode.toUpperCase() === filters.asset;
     const matchesStatus = !filters.status || campaign.progress.status === filters.status;
-
     return matchesAsset && matchesStatus;
   });
 }
@@ -199,7 +197,6 @@ app.get("/api/campaigns", (req: Request, res: Response) => {
   });
 });
 
-
 app.get("/api/campaigns/:id", (req: Request, res: Response) => {
   const parsedId = parseCampaignId(req.params.id);
   if (!parsedId.ok) {
@@ -245,6 +242,28 @@ app.post("/api/campaigns/:id/pledges", (req: Request, res: Response) => {
 
   const campaign = addPledge(parsedId.value, parsedBody.data);
   res.status(201).json({ data: { ...campaign, progress: calculateProgress(campaign) } });
+});
+
+app.post("/api/campaigns/:id/pledges/reconcile", (req: Request, res: Response) => {
+  const parsedId = parseCampaignId(req.params.id);
+  if (!parsedId.ok) {
+    sendValidationError(parsedId.issues);
+    return;
+  }
+
+  const parsedBody = reconcilePledgePayloadSchema.safeParse(req.body);
+  if (!parsedBody.success) {
+    sendValidationError(parsedBody.error.issues);
+    return;
+  }
+
+  const campaign = reconcileOnChainPledge(parsedId.value, parsedBody.data);
+  res.status(201).json({
+    data: {
+      campaign: { ...campaign, progress: calculateProgress(campaign) },
+      transactionHash: parsedBody.data.transactionHash,
+    },
+  });
 });
 
 app.post("/api/campaigns/:id/claim", (req: Request, res: Response) => {
@@ -310,6 +329,12 @@ app.get("/api/open-issues", async (_req: Request, res: Response) => {
 app.get("/api/config", (_req: Request, res: Response) => {
   res.json({
     data: {
+      allowedAssets: config.allowedAssets,
+      sorobanRpcUrl: config.sorobanRpcUrl,
+      contractId: config.contractId,
+      networkPassphrase: config.networkPassphrase,
+      contractAmountDecimals: config.contractAmountDecimals,
+      walletIntegrationReady,
     },
   });
 });
@@ -323,7 +348,7 @@ app.use((err: any, req: Request, res: Response, _next: express.NextFunction) => 
     error: {
       code,
       message: err.message || "An unexpected error occurred",
-      requestId: (req as any).requestId,
+      requestId: (req as Request & { requestId?: string }).requestId,
     },
   };
 
