@@ -33,6 +33,9 @@ import {
   zodIssuesToErrorMessage,
   zodIssuesToValidationIssues,
 } from "./validation/schemas";
+import { AppError, ApiErrorResponse } from "./types/errors";
+import { randomUUID } from "crypto";
+import { requestLoggingMiddleware } from "./middleware/requestLogging";
 import { checkDbHealth } from "./services/db";
 
 export const app = express();
@@ -71,6 +74,9 @@ app.use(
     next();
   },
 );
+
+// Request Logging Middleware
+app.use(requestLoggingMiddleware);
 
 function sendValidationError(issues: z.ZodIssue[]) {
   throw new AppError(
